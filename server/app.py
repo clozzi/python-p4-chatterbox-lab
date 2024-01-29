@@ -15,40 +15,48 @@ migrate = Migrate(app, db)
 db.init_app(app)
 
 @app.route('/messages', methods=['GET', 'POST'])
-def messages(body="empty", username="bob"):
+def messages():
 
     if request.method == 'GET':
-        messages = [message.to_dict() for message in Message.query.all()]
-        # sorted_messages = sorted(messages, key=lambda message:message.created_at)
-        # response = make_response(
-        #     messages,
-        #     200
-        # )
-        # return response
-        return make_response(messages, 200)
+        messages = Message.query.order_by('created_at').all()
+        return make_response([message.to_dict() for message in messages], 200)
     
     elif request.method == 'POST':
-# POST not working still
-        new_message = Message(
-            body = body,
-            username = username
+        message_data = request.get_json()
+        message = Message(
+            body = message_data['body'],
+            username = message_data['username']
         )
 
-        db.session.add(new_message)
+        db.session.add(message)
         db.session.commit()
 
-        new_message_dict = new_message.to_dict()
+        return make_response(message.to_dict(), 201,)
 
-        response = make_response(
-            new_message_dict,
-            201
-        )
-
-        return response
-
-@app.route('/messages/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
+@app.route('/messages/<int:id>', methods=['PATCH', 'DELETE'])
 def messages_by_id(id):
-    return ''
+    message = Message.query.filter_by(id=id).first()
+
+    if request.method == 'PATCH':
+        message_data = request.get_json()
+        for attr in message_data:
+            setattr(message, attr, message_data[attr])
+
+        db.session.add(message)
+        db.session.commit()
+
+        return make_response(message.to_dict(), 200)
+    
+    elif request.method == 'DELETE':
+        db.session.delete(message)
+        db.session.commit()
+
+        response = {
+            'deleted': True
+        }
+
+        return make_response(response, 200)
+        
 
 if __name__ == '__main__':
     app.run(port=5555)
